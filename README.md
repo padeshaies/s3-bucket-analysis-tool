@@ -1,5 +1,5 @@
 # s3-bucket-analysis-tool
-A simple AWS s3 bucket analysis tool in Go
+A simple AWS s3 bucket analysis tool in Go. Go was chosen as a easy language to set up subroutines and concurency (and because I wanted to test my capabilities in this new language that I just learned 🙃)
 
 
 ## How to use
