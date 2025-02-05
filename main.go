@@ -7,6 +7,7 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -18,7 +19,6 @@ import (
 )
 
 func main() {
-
 	displaySettings, err := buildDisplaySettings()
 	if err != nil {
 		log.Fatal(err)
@@ -36,15 +36,32 @@ func main() {
 	}
 
 	client := s3.NewFromConfig(cfg)
-	buckets := make([]types.Bucket, 0)
-	output, err := client.ListBuckets(ctx, &s3.ListBucketsInput{
-		Prefix: &filterSettings.BucketName,
+	buckets := make([]*types.Bucket, 0)
+
+	bucketPaginator := s3.NewListBucketsPaginator(client, &s3.ListBucketsInput{
+		Prefix: aws.String(filterSettings.BucketName),
 	})
-	if err != nil {
-		log.Fatal(err)
+
+	var tasks sync.WaitGroup
+	for bucketPaginator.HasMorePages() {
+		output, err := bucketPaginator.NextPage(ctx)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		tasks.Add(1)
+		go analyzeBucketPage(output, client, ctx, displaySettings, &buckets, &tasks)
 	}
 
-	for _, awsBucket := range output.Buckets {
+	tasks.Wait()
+
+	for _, bucket := range buckets {
+		bucket.Println(displaySettings)
+	}
+}
+
+func analyzeBucketPage(page *s3.ListBucketsOutput, client *s3.Client, ctx context.Context, displaySettings types.DisplaySettings, buckets *[]*types.Bucket, tasks *sync.WaitGroup) {
+	for _, awsBucket := range page.Buckets {
 		bucket := types.Bucket{
 			Name:                   *awsBucket.Name,
 			Region:                 *awsBucket.BucketRegion,
@@ -53,36 +70,48 @@ func main() {
 			TotalSize:              0,
 			MostRecentModifiedDate: time.Time{},
 			Cost:                   0.0,
+			Lock:                   sync.Mutex{},
 		}
 
-		var output *s3.ListObjectsV2Output
 		input := &s3.ListObjectsV2Input{
 			Bucket: aws.String(bucket.Name),
 		}
-
 		objectPaginator := s3.NewListObjectsV2Paginator(client, input)
+
+		var tasks sync.WaitGroup
 		for objectPaginator.HasMorePages() {
-			output, err = objectPaginator.NextPage(ctx)
+			output, err := objectPaginator.NextPage(ctx)
 			if err != nil {
 				log.Fatal(err)
 			}
 
-			for _, object := range output.Contents {
-				bucket.ObjectNumber++
-				bucket.TotalSize += int(*object.Size)
-				if object.LastModified.After(bucket.MostRecentModifiedDate) {
-					bucket.MostRecentModifiedDate = *object.LastModified
-				}
-			}
+			tasks.Add(1)
+			go analyzeBucketObjectPage(output, &bucket, &tasks)
 		}
 
+		tasks.Wait()
+
 		bucket.Cost = helpers.CalculateBucketCost(bucket.TotalSize)
-		buckets = append(buckets, bucket)
+		*buckets = append(*buckets, &bucket)
 	}
 
-	for _, bucket := range buckets {
-		bucket.Println(displaySettings)
+	tasks.Done()
+}
+
+func analyzeBucketObjectPage(page *s3.ListObjectsV2Output, bucket *types.Bucket, tasks *sync.WaitGroup) {
+	for _, object := range page.Contents {
+		bucket.Lock.Lock()
+
+		bucket.ObjectNumber++
+		bucket.TotalSize += int(*object.Size)
+		if object.LastModified.After(bucket.MostRecentModifiedDate) {
+			bucket.MostRecentModifiedDate = *object.LastModified
+		}
+
+		bucket.Lock.Unlock()
 	}
+
+	tasks.Done()
 }
 
 func buildDisplaySettings() (types.DisplaySettings, error) {

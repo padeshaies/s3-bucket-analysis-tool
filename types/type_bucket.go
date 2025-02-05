@@ -2,6 +2,7 @@ package types
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/padeshaies/s3-bucket-analysis-tool/helpers"
@@ -16,6 +17,8 @@ type Bucket struct {
 	TotalSize              int
 	MostRecentModifiedDate time.Time
 	Cost                   float64
+
+	Lock sync.Mutex
 }
 
 func (b *Bucket) Println(displaySettings DisplaySettings) {
