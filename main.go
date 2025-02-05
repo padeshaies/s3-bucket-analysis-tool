@@ -53,7 +53,7 @@ func main() {
 		}
 
 		tasks.Add(1)
-		go analyzeBucketPage(output, client, ctx, bucketList, &tasks)
+		go analyzeBucketPage(output, client, ctx, bucketList, &tasks, filterSettings)
 	}
 
 	tasks.Wait()
@@ -63,7 +63,7 @@ func main() {
 	}
 }
 
-func analyzeBucketPage(page *s3.ListBucketsOutput, client *s3.Client, ctx context.Context, bucketList *types.SafeBucketList, tasks *sync.WaitGroup) {
+func analyzeBucketPage(page *s3.ListBucketsOutput, client *s3.Client, ctx context.Context, bucketList *types.SafeBucketList, tasks *sync.WaitGroup, filterSettings types.SearchFilters) {
 	for _, awsBucket := range page.Buckets {
 		bucket := types.Bucket{
 			Name:                   *awsBucket.Name,
@@ -89,29 +89,41 @@ func analyzeBucketPage(page *s3.ListBucketsOutput, client *s3.Client, ctx contex
 			}
 
 			tasks.Add(1)
-			go analyzeBucketObjectPage(output, &bucket, &tasks)
+			go analyzeBucketObjectPage(output, &bucket, &tasks, filterSettings)
 		}
 
 		tasks.Wait()
 
-		bucket.Cost = helpers.CalculateBucketCost(bucket.TotalSize)
+		if filterSettings.StorageType == "" || (filterSettings.StorageType != "" && bucket.ObjectNumber > 0) {
+			bucket.Cost = helpers.CalculateBucketCost(bucket.TotalSize)
 
-		bucketList.Lock.Lock()
-		*bucketList.Buckets = append(*bucketList.Buckets, &bucket)
-		bucketList.Lock.Unlock()
+			bucketList.Lock.Lock()
+			*bucketList.Buckets = append(*bucketList.Buckets, &bucket)
+			bucketList.Lock.Unlock()
+		}
 	}
 
 	tasks.Done()
 }
 
-func analyzeBucketObjectPage(page *s3.ListObjectsV2Output, bucket *types.Bucket, tasks *sync.WaitGroup) {
+func analyzeBucketObjectPage(page *s3.ListObjectsV2Output, bucket *types.Bucket, tasks *sync.WaitGroup, filterSettings types.SearchFilters) {
 	for _, object := range page.Contents {
 		bucket.Lock.Lock()
+
+		// Apply storage type filter
+		if filterSettings.StorageType != "" && string(object.StorageClass) != filterSettings.StorageType {
+			bucket.Lock.Unlock()
+			continue
+		}
 
 		bucket.ObjectNumber++
 		bucket.TotalSize += int(*object.Size)
 		if object.LastModified.After(bucket.MostRecentModifiedDate) {
 			bucket.MostRecentModifiedDate = *object.LastModified
+		}
+
+		if !slices.Contains(bucket.StorageTypes, string(object.StorageClass)) {
+			bucket.StorageTypes = append(bucket.StorageTypes, string(object.StorageClass))
 		}
 
 		bucket.Lock.Unlock()
@@ -177,18 +189,43 @@ func buildFilterSettings() (types.SearchFilters, error) {
 			log.Fatal("Please provide a filter option")
 		}
 
-		filtersArguments := strings.Split(flags[index+1], ":")
-		if len(filtersArguments) != 2 {
-			log.Fatal("Invalid filter option. Please use 'bucket' or 'storage-type' and the value separated by a colon")
-		}
-		filters := strings.Split(filtersArguments[1], ";")
+		filtersArgument := strings.Split(flags[index+1], ";")
 
-		if index := slices.Index(filters, "bucket"); index != -1 {
-			result.BucketName = filters[index+1]
-		}
+		for _, filter := range filtersArgument {
+			keyValue := strings.Split(filter, ":")
 
-		if index := slices.Index(filters, "storage-type"); index != -1 {
-			result.StorageType = filters[index+1]
+			if len(keyValue) != 2 {
+				log.Fatal("Invalid filter option. Please use a key and a value separated by a colon")
+			}
+
+			key := keyValue[0]
+			if key != "bucket" && key != "storage-type" {
+				log.Fatal("Invalid filter option. Please use 'bucket' or 'storage-type'")
+			}
+
+			if key == "bucket" {
+				result.BucketName = keyValue[1]
+			}
+
+			if key == "storage-type" {
+				storageType := strings.ToUpper(keyValue[1])
+
+				if (storageType != "STANDARD") &&
+					(storageType != "REDUCED_REDUNDANCY") &&
+					(storageType != "GLACIER") &&
+					(storageType != "STANDARD_IA") &&
+					(storageType != "ONEZONE_IA") &&
+					(storageType != "INTELLIGENT_TIERING") &&
+					(storageType != "DEEP_ARCHIVE") &&
+					(storageType != "OUTPOSTS") &&
+					(storageType != "GLACIER_IR") &&
+					(storageType != "SNOW") &&
+					(storageType != "EXPRESS_ONEZONE") {
+					return result, fmt.Errorf("invalid storage type")
+				}
+
+				result.StorageType = storageType
+			}
 		}
 	}
 

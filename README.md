@@ -27,11 +27,12 @@ go test ./...
 - `--file-size b|kb|gb|tb`, your preference for displaying file size (default: b)
 - `--group-by bucket|region`, your preference for grouping results together (default: bucket)
 - `--timezone`, your prefered timezone to display datetime in (default: Local)
-- `--filters bucket-name:bucketname;storage-type:standard|ia|rr|...`, filters to apply of the bucket listing (default: none)
+- `--filters 'bucket-name:bucketname;storage-type:standard|intelligent_tiering|...'`, filters to apply on the bucket listing (default: none) (see [documentation](https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/s3@v1.75.4/types#ObjectStorageClass) for storage type naming convention)
 
 ## TODO
 - [x] parallelize everything!!! 🧑‍🌾
-- [ ] Get and filter by StorageType 🔍
+- [x] Get and filter by StorageType 🔍
+- [ ] Change how many objects which storage type
 - [ ] Cost helper needs some love 🤑
 
 

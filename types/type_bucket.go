@@ -11,7 +11,7 @@ import (
 type Bucket struct {
 	Name                   string
 	Region                 string
-	StorageType            string
+	StorageTypes           []string
 	CreationDate           time.Time
 	ObjectNumber           int
 	TotalSize              int
@@ -28,5 +28,6 @@ func (b *Bucket) Println(displaySettings DisplaySettings) {
 	fmt.Printf("  - Number of files: %v\n", b.ObjectNumber)
 	fmt.Printf("  - Total size: %v\n", helpers.FormatFileSize(b.TotalSize, displaySettings.FileSize))
 	fmt.Printf("  - Most recent modified date: %v\n", b.MostRecentModifiedDate.In(displaySettings.Timezone))
+	fmt.Printf("  - Storage types: %v\n", b.StorageTypes)
 	fmt.Printf("  - Cost: $%v\n", b.Cost)
 }
