@@ -26,5 +26,4 @@ func (b *Bucket) Println(displaySettings DisplaySettings) {
 	fmt.Printf("  - Total size: %v\n", helpers.FormatFileSize(b.TotalSize, displaySettings.FileSize))
 	fmt.Printf("  - Most recent modified date: %v\n", b.MostRecentModifiedDate.In(displaySettings.Timezone))
 	fmt.Printf("  - Cost: $%v\n", b.Cost)
-
 }
