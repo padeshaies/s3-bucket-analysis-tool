@@ -18,13 +18,13 @@ func FormatFileSize(fileSize, unit int) string {
 	case B:
 		return fmt.Sprintf("%d bytes", fileSize)
 	case KB:
-		return fmt.Sprintf("%d KB", fileSize/1024)
+		return fmt.Sprintf("%.2f KB", float64(fileSize)/1024)
 	case MB:
-		return fmt.Sprintf("%d MB", fileSize/1024/1024)
+		return fmt.Sprintf("%.2f MB", float64(fileSize)/1024/1024)
 	case GB:
-		return fmt.Sprintf("%d GB", fileSize/1024/1024/1024)
+		return fmt.Sprintf("%.2f GB", float64(fileSize)/1024/1024/1024)
 	case TB:
-		return fmt.Sprintf("%d TB", fileSize/1024/1024/1024/1024)
+		return fmt.Sprintf("%.2f TB", float64(fileSize)/1024/1024/1024/1024)
 	default:
 		return fmt.Sprintf("%d bytes", fileSize)
 	}

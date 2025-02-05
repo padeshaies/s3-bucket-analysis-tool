@@ -1,6 +1,8 @@
 package helpers
 
-import "math"
+import (
+	"math"
+)
 
 func CalculateBucketCost(bucketSizeInBytes int) float64 {
 	// TODO change the 0.023 depending on the region and bucket tier
