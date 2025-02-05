@@ -4,14 +4,30 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+
+	"github.com/padeshaies/s3-bucket-analysis-tool/helpers"
 )
 
 func main() {
+
+	displaySettings, err := buildDisplaySettings()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	filterSettings, err := buildFilterSettings()
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	ctx := context.Background()
 	cfg, err := config.LoadDefaultConfig(ctx)
 	if err != nil {
@@ -20,9 +36,8 @@ func main() {
 
 	client := s3.NewFromConfig(cfg)
 
-	prefix := ""
 	output, err := client.ListBuckets(ctx, &s3.ListBucketsInput{
-		Prefix: &prefix,
+		Prefix: &filterSettings.bucketName,
 	})
 	if err != nil {
 		log.Fatal(err)
@@ -64,13 +79,85 @@ func main() {
 				}
 			}
 
-			bucketInfo.cost = CalculateBucketCost(bucketInfo.totalSize)
+			bucketInfo.cost = helpers.CalculateBucketCost(bucketInfo.totalSize)
 
 		}
 
 		fmt.Printf("  - Number of files: %v\n", bucketInfo.fileNumber)
-		fmt.Printf("  - Total size: %v bytes\n", bucketInfo.totalSize)
+		fmt.Printf("  - Total size: %v\n", helpers.FormatFileSize(bucketInfo.totalSize, displaySettings.fileSize))
 		fmt.Printf("  - Most recent modified date: %v\n", bucketInfo.mostRecentModifiedDate.In(loc))
 		fmt.Printf("  - Cost: $%v\n", bucketInfo.cost)
 	}
+}
+
+type DisplaySettings struct {
+	fileSize int
+	groupBy  string
+}
+
+func buildDisplaySettings() (DisplaySettings, error) {
+	result := DisplaySettings{
+		fileSize: helpers.B,
+		groupBy:  "",
+	}
+
+	flags := os.Args[1:]
+
+	if index := slices.Index(flags, "--file-size"); index != -1 {
+		if len(flags) < index+2 {
+			return result, fmt.Errorf("please provide a file size unit")
+		}
+
+		result.fileSize, _ = helpers.GetUnit(flags[index+1])
+	}
+
+	if index := slices.Index(flags, "--group-by"); index != -1 {
+		if len(flags) < index+2 {
+			return result, fmt.Errorf("please provide a group by option")
+		}
+
+		groupBy := flags[index+1]
+		if groupBy != "region" && groupBy != "bucket" {
+			return result, fmt.Errorf("invalid group by option. ilease use 'region' or 'bucket'")
+		}
+		result.groupBy = groupBy
+	}
+
+	return result, nil
+}
+
+type FilterSettings struct {
+	bucketName  string
+	storageType string
+}
+
+func buildFilterSettings() (FilterSettings, error) {
+	result := FilterSettings{
+		bucketName:  "",
+		storageType: "",
+	}
+
+	flags := os.Args[1:]
+
+	if index := slices.Index(flags, "--filters"); index != -1 {
+		if len(flags) < index+2 {
+			log.Fatal("Please provide a filter option")
+		}
+
+		filtersArguments := strings.Split(flags[index+1], ":")
+		if len(filtersArguments) != 2 {
+			log.Fatal("Invalid filter option. Please use 'bucket' or 'storage-type' and the value separated by a colon")
+		}
+		filters := strings.Split(filtersArguments[1], ";")
+
+		if index := slices.Index(filters, "bucket"); index != -1 {
+			result.bucketName = filters[index+1]
+		}
+
+		if index := slices.Index(filters, "storage-type"); index != -1 {
+			result.storageType = filters[index+1]
+		}
+	}
+
+	return result, nil
 }
