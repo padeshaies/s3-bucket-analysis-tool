@@ -17,6 +17,12 @@ go build -o .out
 ```
 Requirements: Have AWS config and credentials files set up in advance
 
+## Unit tests and how to run them
+Units tests for helpers have been created and can be run with the following command line
+```
+go test ./...
+```
+
 ### Optional Flags
 - `--file-size b|kb|gb|tb`, your preference for displaying file size (default: b)
 - `--group-by bucket|region`, your preference for grouping results together (default: bucket)
