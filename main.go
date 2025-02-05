@@ -36,7 +36,10 @@ func main() {
 	}
 
 	client := s3.NewFromConfig(cfg)
-	buckets := make([]*types.Bucket, 0)
+	bucketList := &types.SafeBucketList{
+		Buckets: &[]*types.Bucket{},
+		Lock:    sync.Mutex{},
+	}
 
 	bucketPaginator := s3.NewListBucketsPaginator(client, &s3.ListBucketsInput{
 		Prefix: aws.String(filterSettings.BucketName),
@@ -50,17 +53,17 @@ func main() {
 		}
 
 		tasks.Add(1)
-		go analyzeBucketPage(output, client, ctx, displaySettings, &buckets, &tasks)
+		go analyzeBucketPage(output, client, ctx, bucketList, &tasks)
 	}
 
 	tasks.Wait()
 
-	for _, bucket := range buckets {
+	for _, bucket := range *bucketList.Buckets {
 		bucket.Println(displaySettings)
 	}
 }
 
-func analyzeBucketPage(page *s3.ListBucketsOutput, client *s3.Client, ctx context.Context, displaySettings types.DisplaySettings, buckets *[]*types.Bucket, tasks *sync.WaitGroup) {
+func analyzeBucketPage(page *s3.ListBucketsOutput, client *s3.Client, ctx context.Context, bucketList *types.SafeBucketList, tasks *sync.WaitGroup) {
 	for _, awsBucket := range page.Buckets {
 		bucket := types.Bucket{
 			Name:                   *awsBucket.Name,
@@ -92,7 +95,10 @@ func analyzeBucketPage(page *s3.ListBucketsOutput, client *s3.Client, ctx contex
 		tasks.Wait()
 
 		bucket.Cost = helpers.CalculateBucketCost(bucket.TotalSize)
-		*buckets = append(*buckets, &bucket)
+
+		bucketList.Lock.Lock()
+		*bucketList.Buckets = append(*bucketList.Buckets, &bucket)
+		bucketList.Lock.Unlock()
 	}
 
 	tasks.Done()
