@@ -14,6 +14,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 
 	"github.com/padeshaies/s3-bucket-analysis-tool/helpers"
+	"github.com/padeshaies/s3-bucket-analysis-tool/types"
 )
 
 func main() {
@@ -35,34 +36,29 @@ func main() {
 	}
 
 	client := s3.NewFromConfig(cfg)
-
+	buckets := make([]types.Bucket, 0)
 	output, err := client.ListBuckets(ctx, &s3.ListBucketsInput{
-		Prefix: &filterSettings.bucketName,
+		Prefix: &filterSettings.BucketName,
 	})
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	for _, bucket := range output.Buckets {
-		fmt.Printf("Name: %v\n", *bucket.Name)
-
-		// bug: invalid memory address or nil pointer dereference
-		fmt.Printf("  - Region: %v\n", *bucket.BucketRegion)
-
-		loc, _ := time.LoadLocation("Local")
-		fmt.Printf("  - CreationDate: %v\n", bucket.CreationDate.In(loc))
+	for _, awsBucket := range output.Buckets {
+		bucket := types.Bucket{
+			Name:                   *awsBucket.Name,
+			Region:                 *awsBucket.BucketRegion,
+			CreationDate:           *awsBucket.CreationDate,
+			ObjectNumber:           0,
+			TotalSize:              0,
+			MostRecentModifiedDate: time.Time{},
+			Cost:                   0.0,
+		}
 
 		var output *s3.ListObjectsV2Output
 		input := &s3.ListObjectsV2Input{
-			Bucket: aws.String(*bucket.Name),
+			Bucket: aws.String(bucket.Name),
 		}
-
-		bucketInfo := struct {
-			fileNumber             int
-			totalSize              int
-			mostRecentModifiedDate time.Time
-			cost                   float64
-		}{}
 
 		objectPaginator := s3.NewListObjectsV2Paginator(client, input)
 		for objectPaginator.HasMorePages() {
@@ -72,33 +68,28 @@ func main() {
 			}
 
 			for _, object := range output.Contents {
-				bucketInfo.fileNumber++
-				bucketInfo.totalSize += int(*object.Size)
-				if object.LastModified.After(bucketInfo.mostRecentModifiedDate) {
-					bucketInfo.mostRecentModifiedDate = *object.LastModified
+				bucket.ObjectNumber++
+				bucket.TotalSize += int(*object.Size)
+				if object.LastModified.After(bucket.MostRecentModifiedDate) {
+					bucket.MostRecentModifiedDate = *object.LastModified
 				}
 			}
-
-			bucketInfo.cost = helpers.CalculateBucketCost(bucketInfo.totalSize)
-
 		}
 
-		fmt.Printf("  - Number of files: %v\n", bucketInfo.fileNumber)
-		fmt.Printf("  - Total size: %v\n", helpers.FormatFileSize(bucketInfo.totalSize, displaySettings.fileSize))
-		fmt.Printf("  - Most recent modified date: %v\n", bucketInfo.mostRecentModifiedDate.In(loc))
-		fmt.Printf("  - Cost: $%v\n", bucketInfo.cost)
+		bucket.Cost = helpers.CalculateBucketCost(bucket.TotalSize)
+		buckets = append(buckets, bucket)
+	}
+
+	for _, bucket := range buckets {
+		bucket.Println(displaySettings)
 	}
 }
 
-type DisplaySettings struct {
-	fileSize int
-	groupBy  string
-}
-
-func buildDisplaySettings() (DisplaySettings, error) {
-	result := DisplaySettings{
-		fileSize: helpers.B,
-		groupBy:  "",
+func buildDisplaySettings() (types.DisplaySettings, error) {
+	result := types.DisplaySettings{
+		FileSize: helpers.B,
+		GroupBy:  "",
+		Timezone: time.Local,
 	}
 
 	flags := os.Args[1:]
@@ -108,7 +99,7 @@ func buildDisplaySettings() (DisplaySettings, error) {
 			return result, fmt.Errorf("please provide a file size unit")
 		}
 
-		result.fileSize, _ = helpers.GetUnit(flags[index+1])
+		result.FileSize, _ = helpers.GetUnit(flags[index+1])
 	}
 
 	if index := slices.Index(flags, "--group-by"); index != -1 {
@@ -120,21 +111,28 @@ func buildDisplaySettings() (DisplaySettings, error) {
 		if groupBy != "region" && groupBy != "bucket" {
 			return result, fmt.Errorf("invalid group by option. ilease use 'region' or 'bucket'")
 		}
-		result.groupBy = groupBy
+		result.GroupBy = groupBy
+	}
+
+	if index := slices.Index(flags, "--timezone"); index != -1 {
+		if len(flags) < index+2 {
+			return result, fmt.Errorf("please provide a timezone")
+		}
+
+		loc, err := time.LoadLocation(flags[index+1])
+		if err != nil {
+			return result, fmt.Errorf("invalid timezone")
+		}
+		result.Timezone = loc
 	}
 
 	return result, nil
 }
 
-type FilterSettings struct {
-	bucketName  string
-	storageType string
-}
-
-func buildFilterSettings() (FilterSettings, error) {
-	result := FilterSettings{
-		bucketName:  "",
-		storageType: "",
+func buildFilterSettings() (types.SearchFilters, error) {
+	result := types.SearchFilters{
+		BucketName:  "",
+		StorageType: "",
 	}
 
 	flags := os.Args[1:]
@@ -151,11 +149,11 @@ func buildFilterSettings() (FilterSettings, error) {
 		filters := strings.Split(filtersArguments[1], ";")
 
 		if index := slices.Index(filters, "bucket"); index != -1 {
-			result.bucketName = filters[index+1]
+			result.BucketName = filters[index+1]
 		}
 
 		if index := slices.Index(filters, "storage-type"); index != -1 {
-			result.storageType = filters[index+1]
+			result.StorageType = filters[index+1]
 		}
 	}
 

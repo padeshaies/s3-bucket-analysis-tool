@@ -18,7 +18,14 @@ Requirements: Have AWS config and credentials files set up in advance
 ### Optional Flags
 - `--file-size b|kb|gb|tb`, your preference for displaying file size (default: b)
 - `--group-by bucket|region`, your preference for grouping results together (default: bucket)
+- `--timezone`, your prefered timezone to display datetime in (default: local)
 - `--filters bucket-name:bucketname;storage-type:standard|ia|rr|...`, filters to apply of the bucket listing (default: none)
 
+## TODO
+- [ ] Paralelize everything!!!
+- [ ] Get / filter by StorageType
+- [ ] Cost fucking needs some love
+
+
 ## Problems
-- [ ] Fetch buckets from different regions
+- [ ] Fetch buckets from different regions 
