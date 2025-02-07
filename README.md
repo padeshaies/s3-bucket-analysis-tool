@@ -34,6 +34,7 @@ go test ./...
 - [x] Get and filter by StorageType 🔍
 - [x] Change how many objects which storage type
 - [x] Cost helper needs some love 🤑 (in progress)
+    - [ ] Unit test the crap out of it! 🔬
     - [ ] Mising INTELLIGENT_TIERING, SNOW and OUTPOSTS? (will need more precisions on those)
 
 
