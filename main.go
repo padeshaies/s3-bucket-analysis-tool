@@ -18,7 +18,7 @@ import (
 	"github.com/padeshaies/s3-bucket-analysis-tool/types"
 )
 
-var cfg aws.Config
+// var cfg aws.Config
 
 func main() {
 	displaySettings, err := buildDisplaySettings()
