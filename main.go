@@ -18,6 +18,8 @@ import (
 	"github.com/padeshaies/s3-bucket-analysis-tool/types"
 )
 
+var cfg aws.Config
+
 func main() {
 	displaySettings, err := buildDisplaySettings()
 	if err != nil {
@@ -79,6 +81,20 @@ func analyzeBucketPage(page *s3.ListBucketsOutput, client *s3.Client, ctx contex
 		input := &s3.ListObjectsV2Input{
 			Bucket: aws.String(bucket.Name),
 		}
+
+		// Adjust the client to the bucket region if necessary
+		// TODO - Fix this
+		/* var regionClient *s3.Client
+		if client.Options().Region != bucket.Region {
+			newCfg := cfg.Copy()
+			newCfg.Region = bucket.Region
+			regionClient = s3.NewFromConfig(newCfg)
+		} else {
+			regionClient = client
+		}
+
+		fmt.Println("Searching region " + regionClient.Options().Region + " for bucket " + bucket.Name) */
+
 		objectPaginator := s3.NewListObjectsV2Paginator(client, input)
 
 		var tasks sync.WaitGroup
