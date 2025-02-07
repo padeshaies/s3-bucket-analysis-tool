@@ -33,7 +33,8 @@ go test ./...
 - [x] parallelize everything!!! 🧑‍🌾
 - [x] Get and filter by StorageType 🔍
 - [x] Change how many objects which storage type
-- [ ] Cost helper needs some love 🤑 (in progress)
+- [x] Cost helper needs some love 🤑 (in progress)
+    - [ ] Mising INTELLIGENT_TIERING, SNOW and OUTPOSTS? (will need more precisions on those)
 
 
 ## Problems
