@@ -71,10 +71,9 @@ func analyzeBucketPage(page *s3.ListBucketsOutput, client *s3.Client, ctx contex
 			Name:                   *awsBucket.Name,
 			Region:                 *awsBucket.BucketRegion,
 			CreationDate:           *awsBucket.CreationDate,
-			ObjectNumber:           0,
-			TotalSize:              0,
+			ObjectsNumber:          map[string]int{},
+			ObjectsSize:            map[string]int{},
 			MostRecentModifiedDate: time.Time{},
-			Cost:                   0.0,
 			Lock:                   sync.Mutex{},
 		}
 
@@ -110,9 +109,7 @@ func analyzeBucketPage(page *s3.ListBucketsOutput, client *s3.Client, ctx contex
 
 		tasks.Wait()
 
-		if filterSettings.StorageType == "" || (filterSettings.StorageType != "" && bucket.ObjectNumber > 0) {
-			bucket.Cost = helpers.CalculateBucketCost(bucket.TotalSize)
-
+		if filterSettings.StorageType == "" || (filterSettings.StorageType != "" && bucket.TotalObjectNumber() > 0) {
 			bucketList.Lock.Lock()
 			*bucketList.Buckets = append(*bucketList.Buckets, &bucket)
 			bucketList.Lock.Unlock()
@@ -132,8 +129,8 @@ func analyzeBucketObjectPage(page *s3.ListObjectsV2Output, bucket *types.Bucket,
 			continue
 		}
 
-		bucket.ObjectNumber++
-		bucket.TotalSize += int(*object.Size)
+		bucket.ObjectsNumber[string(object.StorageClass)]++
+		bucket.ObjectsSize[string(object.StorageClass)] += int(*object.Size)
 		if object.LastModified.After(bucket.MostRecentModifiedDate) {
 			bucket.MostRecentModifiedDate = *object.LastModified
 		}

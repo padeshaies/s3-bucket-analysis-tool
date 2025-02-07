@@ -32,9 +32,10 @@ go test ./...
 ## TODO
 - [x] parallelize everything!!! 🧑‍🌾
 - [x] Get and filter by StorageType 🔍
-- [ ] Change how many objects which storage type
-- [ ] Cost helper needs some love 🤑
+- [x] Change how many objects which storage type
+- [ ] Cost helper needs some love 🤑 (in progress)
 
 
 ## Problems
 - [ ] Fetch buckets from different regions 
+- [ ] Calculating cost for Outpost and Snow storageTypes (what's a snow?!) (is Outpost virtually free 'cause it's on prem?)
